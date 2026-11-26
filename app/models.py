@@ -24,8 +24,18 @@ class GameServer(Base):
     api_key_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     verified: Mapped[bool] = mapped_column(Boolean, default=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    verification_status: Mapped[str] = mapped_column(String(32), default="pending_verification")
+    pairing_token_hash: Mapped[str] = mapped_column(String(64), default="", index=True)
+    registration_id: Mapped[str] = mapped_column(String(80), unique=True, index=True, default="")
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    can_issue_global_bans: Mapped[bool] = mapped_column(Boolean, default=False)
+    last_heartbeat: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    player_count: Mapped[int] = mapped_column(Integer, default=0)
+    max_player_count: Mapped[int] = mapped_column(Integer, default=0)
+    gmod_version: Mapped[str] = mapped_column(String(100), default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     reports: Mapped[list["Report"]] = relationship(back_populates="server")
+    owner: Mapped[User | None] = relationship()
 
 class Report(Base):
     __tablename__ = "reports"
@@ -49,6 +59,20 @@ class Vote(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     report: Mapped[Report] = relationship(back_populates="votes")
     __table_args__ = (UniqueConstraint("report_id", "server_id", name="uq_vote_server_report"),)
+
+class GlobalBan(Base):
+    __tablename__ = "global_bans"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    steamid: Mapped[str] = mapped_column(String(20), index=True)
+    reason: Mapped[str] = mapped_column(String(500))
+    duration: Mapped[str] = mapped_column(String(32), default="permanent")
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(24), default="active", index=True)
+    issuer: Mapped[str] = mapped_column(String(100))
+    source_server_id: Mapped[int | None] = mapped_column(ForeignKey("game_servers.id"), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_by: Mapped[str] = mapped_column(String(100), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 class AuditEvent(Base):
     __tablename__ = "audit_events"

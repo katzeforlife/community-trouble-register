@@ -49,4 +49,27 @@ This starter records reports and votes but **does not automatically impose a glo
 
 ## Garry's Mod addon
 
-`gmod/lua/autorun/server/ctr_init.lua` is a basic server-side example. Install it on the server, configure the API base URL and key in the file, and test with a private test server first. Do not put server secrets in client-side Lua files or workshop-distributed client code.
+Copy `gmod/addon.json` and `gmod/lua/` into a Garry's Mod addon folder named `ctr_integration`, or install the `gmod` folder contents as an addon.
+
+Set server-only convars in `server.cfg`:
+
+```cfg
+ctr_api_url "https://your-ctr-service.example"
+ctr_setup_token "your-private-server-pairing-token"
+ctr_fail_closed "0"
+ctr_heartbeat_interval "300"
+```
+
+The first successful registration writes the issued API key and registration ID to `garrysmod/data/ctr/server_state.json`. Keep this file private. Restarting the server reuses the credential and remains idempotent. Administrators verify the server in `/admin`; only then can server-originated API actions proceed under the server's assigned permissions.
+
+Testing:
+
+1. Install on a private dedicated server.
+2. Set the URL and setup token, then restart.
+3. Confirm startup and registration logs, pending status in `/admin`, and heartbeat updates.
+4. Verify the server in `/admin`.
+5. Console: `ctr_ban 76561198000000000 1d Repeated harassment`
+6. Chat: `!ctr_ban 76561198000000000 permanent Serious confirmed abuse`
+7. Revoking the ban in `/admin` must stop enforcement on the next player check.
+
+Global ban permission is independent: set it per server in the admin console. A SuperAdmin GMod permission alone does not grant CTR global-ban authority. API outages fail open by default; set `ctr_fail_closed "1"` only for an explicitly chosen strict policy.

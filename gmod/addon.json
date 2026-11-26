@@ -1,0 +1,6 @@
+{
+  "title": "CTR Integration",
+  "type": "ServerContent",
+  "tags": ["server", "roleplay", "fun"],
+  "ignore": ["*.md", "*.git*", "*.psd", "*.vcproj", "*.svn*"]
+}
