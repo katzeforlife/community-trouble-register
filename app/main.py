@@ -1,43 +1,30 @@
 import os, re, secrets
+from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, Depends, HTTPException, Header, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from sqlalchemy.orm import Session
-from sqlalchemy import select, func, text
+from sqlalchemy import select, func
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
-from .db import Base, engine, get_db, SessionLocal
+from .db import get_db, SessionLocal
 from .models import User, GameServer, Report, Vote, AuditEvent, GlobalBan
+from .migrations import migrate_database
 from .security import hash_password, verify_password, new_api_key, hash_key
 
 load_dotenv()
 BASE = Path(__file__).resolve().parent
-app = FastAPI(title="Community Trouble Register API", version="0.1.0")
-app.mount("/static", StaticFiles(directory=str(BASE / "static")), name="static")
-Base.metadata.create_all(bind=engine)
 
-def ensure_sqlite_columns():
-    if not str(engine.url).startswith("sqlite"):
-        return
-    with engine.begin() as connection:
-        existing = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(game_servers)").fetchall()}
-        additions = {
-            "verification_status": "VARCHAR(32) NOT NULL DEFAULT 'pending_verification'",
-            "pairing_token_hash": "VARCHAR(64) NOT NULL DEFAULT ''",
-            "registration_id": "VARCHAR(80) NOT NULL DEFAULT ''",
-            "owner_id": "INTEGER",
-            "can_issue_global_bans": "BOOLEAN NOT NULL DEFAULT 0",
-            "last_heartbeat": "DATETIME",
-            "player_count": "INTEGER NOT NULL DEFAULT 0",
-            "max_player_count": "INTEGER NOT NULL DEFAULT 0",
-            "gmod_version": "VARCHAR(100) NOT NULL DEFAULT ''",
-        }
-        for column, ddl in additions.items():
-            if column not in existing:
-                connection.exec_driver_sql(f"ALTER TABLE game_servers ADD COLUMN {column} {ddl}")
-ensure_sqlite_columns()
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    migrate_database()
+    seed_admin()
+    yield
+
+app = FastAPI(title="Community Trouble Register API", version="0.1.0", lifespan=lifespan)
+app.mount("/static", StaticFiles(directory=str(BASE / "static")), name="static")
 
 def seed_admin():
     with SessionLocal() as db:
@@ -46,7 +33,6 @@ def seed_admin():
         if not db.scalar(select(User).where(User.username == username)):
             db.add(User(username=username, password_hash=hash_password(password), is_admin=True))
             db.commit()
-seed_admin()
 
 def _cookie_signer():
     return URLSafeTimedSerializer(os.getenv("APP_SECRET", "replace-with-a-long-random-secret"), salt="ctr-admin-session")
